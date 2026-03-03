@@ -20,15 +20,26 @@ def load_tasks():
     with open(TASKS_FILE, 'r', encoding='utf-8') as f:
         return json.load(f)
 
-def save_tasks(tasks_data):
-    """タスクを保存してgitにコミット＆プッシュ（非同期）"""
+def save_tasks(tasks_data, action_type='更新', task_name=''):
+    """タスクを保存してgitにコミット＆プッシュ（非同期）
+
+    Args:
+        tasks_data: タスクデータ
+        action_type: 操作種類（新規作成/ステータス変更/更新/削除）
+        task_name: タスク名
+    """
     with open(TASKS_FILE, 'w', encoding='utf-8') as f:
         json.dump(tasks_data, f, ensure_ascii=False, indent=2)
     # Git操作はバックグラウンドで実行（レスポンスを速くする）
-    threading.Thread(target=git_commit_and_push, daemon=True).start()
+    threading.Thread(target=git_commit_and_push, args=(action_type, task_name), daemon=True).start()
 
-def git_commit_and_push():
-    """dataディレクトリでgit commit & pushを実行（バックグラウンド）"""
+def git_commit_and_push(action_type='更新', task_name=''):
+    """dataディレクトリでgit commit & pushを実行（バックグラウンド）
+
+    Args:
+        action_type: 操作種類（新規作成/ステータス変更/更新/削除）
+        task_name: タスク名
+    """
     try:
         # dataディレクトリに移動してgit操作
         subprocess.run(
@@ -39,8 +50,15 @@ def git_commit_and_push():
             encoding='utf-8'
         )
 
+        # コミットメッセージを作成: 操作タイプ_タスク名
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        if task_name:
+            message = f'{action_type}_{task_name}'
+        else:
+            message = f'{action_type}'
+
         subprocess.run(
-            ['git', 'commit', '-m', f'Update tasks - {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'],
+            ['git', 'commit', '-m', message],
             cwd=DATA_DIR,
             capture_output=True,
             text=True,
@@ -94,7 +112,7 @@ def create_task():
     }
 
     tasks_data['tasks'].append(new_task)
-    save_tasks(tasks_data)
+    save_tasks(tasks_data, '新規作成', task['name'])
     return jsonify(new_task), 201
 
 @app.route('/api/tasks/<task_id>', methods=['PUT'])
@@ -107,11 +125,18 @@ def update_task(task_id):
         return jsonify({'error': 'Task not found'}), 404
 
     updated_data = request.json
+    current_task = tasks_data['tasks'][task_index]
+
+    # ステータス変更のみの場合は「ステータス変更」、それ以外は「更新」
+    is_status_only = ('status' in updated_data and len(updated_data) == 1)
+    action_type = 'ステータス変更' if is_status_only else '更新'
+    task_name = current_task.get('name', '')
+
     tasks_data['tasks'][task_index].update(updated_data)
     # IDは変更しない
     tasks_data['tasks'][task_index]['id'] = task_id
 
-    save_tasks(tasks_data)
+    save_tasks(tasks_data, action_type, task_name)
     return jsonify(tasks_data['tasks'][task_index])
 
 @app.route('/api/tasks/<task_id>', methods=['DELETE'])
@@ -124,7 +149,8 @@ def delete_task(task_id):
         return jsonify({'error': 'Task not found'}), 404
 
     deleted_task = tasks_data['tasks'].pop(task_index)
-    save_tasks(tasks_data)
+    task_name = deleted_task.get('name', '')
+    save_tasks(tasks_data, '削除', task_name)
     return jsonify(deleted_task)
 
 if __name__ == '__main__':
