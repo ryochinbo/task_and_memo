@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Life</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Life</h1>
+            <div class="header-actions">
+                <button id="addTaskBtn" class="btn btn-primary">New Task</button>
+            </div>
+        </header>
+
+        <!-- Tab Navigation -->
+        <nav class="tab-nav">
+            <button class="tab-btn active" data-tab="board">Board</button>
+            <button class="tab-btn" data-tab="calendar">Calendar</button>
+        </nav>
+
+        <!-- Board View -->
+        <div class="tab-content active" id="boardView">
+            <div class="kanban-board">
+                <!-- TODO Column -->
+                <div class="column" data-status="todo">
+                    <h2>To Do</h2>
+                    <div class="task-list" id="todoList"></div>
+                </div>
+
+                <!-- In Progress Column -->
+                <div class="column" data-status="in_progress">
+                    <h2>In Progress</h2>
+                    <div class="task-list" id="inProgressList"></div>
+                </div>
+
+                <!-- Done Column -->
+                <div class="column" data-status="done">
+                    <h2>Done</h2>
+                    <div class="task-list" id="doneList"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Calendar View -->
+        <div class="tab-content" id="calendarView">
+            <div class="calendar-container">
+                <div class="calendar-header">
+                    <button class="btn-icon" id="prevMonth">&lsaquo;</button>
+                    <h2 id="currentMonth"></h2>
+                    <button class="btn-icon" id="nextMonth">&rsaquo;</button>
+                </div>
+                <div class="calendar-grid">
+                    <div class="calendar-day-header">Sun</div>
+                    <div class="calendar-day-header">Mon</div>
+                    <div class="calendar-day-header">Tue</div>
+                    <div class="calendar-day-header">Wed</div>
+                    <div class="calendar-day-header">Thu</div>
+                    <div class="calendar-day-header">Fri</div>
+                    <div class="calendar-day-header">Sat</div>
+                </div>
+                <div class="calendar-grid" id="calendarDays"></div>
+            </div>
+
+            <!-- Tasks for Selected Date -->
+            <div class="selected-date-tasks" id="selectedDateTasks">
+                <h3 id="selectedDateTitle">Select a date</h3>
+                <div class="task-list" id="calendarTaskList"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Task Create/Edit Modal -->
+    <div id="taskModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">New Task</h2>
+                <span class="close">&times;</span>
+            </div>
+            <form id="taskForm">
+                <input type="hidden" id="taskId">
+
+                <div class="form-group">
+                    <label for="taskName">Task Name *</label>
+                    <input type="text" id="taskName" required placeholder="Enter task name">
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="taskStatus">Status</label>
+                        <select id="taskStatus">
+                            <option value="todo">To Do</option>
+                            <option value="in_progress">In Progress</option>
+                            <option value="done">Done</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="taskPriority">Priority</label>
+                        <select id="taskPriority">
+                            <option value="high">High</option>
+                            <option value="medium">Medium</option>
+                            <option value="low">Low</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="taskMemo">Memo</label>
+                    <textarea id="taskMemo" rows="3" placeholder="Add a description..."></textarea>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="taskTags">Tags (comma separated)</label>
+                        <input type="text" id="taskTags" placeholder="e.g. frontend, urgent">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="taskTagCustom">Custom Tag</label>
+                        <input type="text" id="taskTagCustom" placeholder="Custom tag description">
+                    </div>
+                </div>
+
+                <div class="form-group checkbox-group">
+                    <label>
+                        <input type="checkbox" id="taskHasBall">
+                        I have the ball
+                    </label>
+                </div>
+
+                <div class="form-group" id="ballHolderGroup" style="display: none;">
+                    <label for="taskBallHolder">Ball Holder Name</label>
+                    <input type="text" id="taskBallHolder" placeholder="Who has the ball?">
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="taskStartDate">Start Date</label>
+                        <input type="date" id="taskStartDate">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="taskDueDate">Due Date</label>
+                        <input type="date" id="taskDueDate">
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Save</button>
+                    <button type="button" class="btn btn-secondary" id="cancelBtn">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
