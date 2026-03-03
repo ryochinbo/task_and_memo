@@ -26,6 +26,24 @@
 
         <!-- Board View -->
         <div class="tab-content active" id="boardView">
+            <!-- Filters -->
+            <div class="filters">
+                <div class="filter-group">
+                    <label>Ball</label>
+                    <select id="ballFilter">
+                        <option value="all">All</option>
+                        <option value="mine">Mine</option>
+                        <option value="others">Others</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Tags</label>
+                    <div class="tag-filter" id="tagFilter">
+                        <button class="tag-filter-btn" data-tag="all">All</button>
+                    </div>
+                </div>
+            </div>
+
             <div class="kanban-board">
                 <!-- TODO Column -->
                 <div class="column" data-status="todo">

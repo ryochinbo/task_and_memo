@@ -8,6 +8,10 @@ let currentDate = new Date();
 let selectedDate = null;
 let allTags = new Set();
 
+// Filter state
+let currentBallFilter = 'all';
+let selectedTagFilters = new Set(['all']);
+
 // DOM elements
 const taskModal = document.getElementById('taskModal');
 const taskForm = document.getElementById('taskForm');
@@ -27,6 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupTabs();
     setupCalendar();
     setupTagAutocomplete();
+    setupFilters();
 });
 
 // Setup tabs
@@ -312,6 +317,7 @@ function updateAllTags() {
             task.tags.forEach(tag => allTags.add(tag));
         }
     });
+    updateTagFilterButtons();
 }
 
 // Setup event listeners
@@ -358,8 +364,11 @@ function renderTasks() {
     inProgressList.innerHTML = '';
     doneList.innerHTML = '';
 
+    // Filter tasks
+    const filteredTasks = tasks.filter(task => passesFilters(task));
+
     // Distribute tasks by status
-    tasks.forEach(task => {
+    filteredTasks.forEach(task => {
         const taskCard = createTaskCard(task);
         switch (task.status) {
             case 'todo':
@@ -378,6 +387,25 @@ function renderTasks() {
     if (document.getElementById('calendarView').classList.contains('active')) {
         renderCalendar();
     }
+}
+
+// Check if task passes current filters
+function passesFilters(task) {
+    // Ball filter
+    if (currentBallFilter === 'mine') {
+        if (!task.has_ball) return false;
+    } else if (currentBallFilter === 'others') {
+        if (task.has_ball) return false;
+    }
+
+    // Tag filter
+    if (!selectedTagFilters.has('all') && selectedTagFilters.size > 0) {
+        if (!task.tags || task.tags.length === 0) return false;
+        const hasMatchingTag = task.tags.some(tag => selectedTagFilters.has(tag));
+        if (!hasMatchingTag) return false;
+    }
+
+    return true;
 }
 
 // Create task card
@@ -640,3 +668,63 @@ window.editTask = function(taskId) {
 window.deleteTask = function(taskId) {
     deleteTask(taskId);
 };
+
+// ============================================
+// Filter Functions
+// ============================================
+
+function setupFilters() {
+    // Ball filter
+    const ballFilter = document.getElementById('ballFilter');
+    if (ballFilter) {
+        ballFilter.addEventListener('change', (e) => {
+            currentBallFilter = e.target.value;
+            renderTasks();
+        });
+    }
+}
+
+function updateTagFilterButtons() {
+    const tagFilter = document.getElementById('tagFilter');
+    if (!tagFilter) return;
+
+    // Clear existing buttons
+    tagFilter.innerHTML = '';
+
+    // Add "All" button
+    const allBtn = document.createElement('button');
+    allBtn.className = `tag-filter-btn ${selectedTagFilters.has('all') ? 'active' : ''}`;
+    allBtn.textContent = 'All';
+    allBtn.dataset.tag = 'all';
+    allBtn.addEventListener('click', () => applyTagFilter('all'));
+    tagFilter.appendChild(allBtn);
+
+    // Add tag buttons
+    allTags.forEach(tag => {
+        const btn = document.createElement('button');
+        btn.className = `tag-filter-btn ${selectedTagFilters.has(tag) ? 'active' : ''}`;
+        btn.textContent = tag;
+        btn.dataset.tag = tag;
+        btn.addEventListener('click', () => applyTagFilter(tag));
+        tagFilter.appendChild(btn);
+    });
+}
+
+function applyTagFilter(tag) {
+    if (tag === 'all') {
+        selectedTagFilters.clear();
+        selectedTagFilters.add('all');
+    } else {
+        selectedTagFilters.delete('all');
+        if (selectedTagFilters.has(tag)) {
+            selectedTagFilters.delete(tag);
+            if (selectedTagFilters.size === 0) {
+                selectedTagFilters.add('all');
+            }
+        } else {
+            selectedTagFilters.add(tag);
+        }
+    }
+    updateTagFilterButtons();
+    renderTasks();
+}
