@@ -103,7 +103,6 @@ task_and_memo/
 
 1. `data` ディレクトリでGitHubリポジトリを作成
 2. GitHub Pagesの設定でSourceを `main` ブランチに設定
-3. 専用ビューアーでタスクを閲覧可能
 
 ## 🎨 タスク項目
 
