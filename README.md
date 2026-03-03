@@ -23,6 +23,14 @@
 - **Git**: `data/` ディレクトリ（独立したGitリポジトリ）
 ```
 
+#### claude codeでの操作
+いくつかのタスクを同時にたてる場合やスケジュール分析などはGUIより早いです。
+![alt text](docs/screenshots/image.png)
+![alt text](docs/screenshots/image-1.png)
+![alt text](docs/screenshots/image-2.png)
+#### そのほか
+gitでタスクの変動歴がみえるので、仕事のパフォーマンスレビューや自分の行動ログ分析をさせることもできます。
+
 ### 📅 カレンダービュー
 - 月間カレンダーで予定を一目で確認
 - タスクがある日はドットで表示
