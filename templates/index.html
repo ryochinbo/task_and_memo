@@ -36,10 +36,19 @@
                         <option value="others">Others</option>
                     </select>
                 </div>
-                <div class="filter-group">
+                <div class="filter-group filter-dropdown">
                     <label>Tags</label>
-                    <div class="tag-filter" id="tagFilter">
-                        <button class="tag-filter-btn" data-tag="all">All</button>
+                    <div class="dropdown">
+                        <button class="dropdown-btn" id="tagDropdownBtn">
+                            <span id="tagDropdownLabel">All</span>
+                            <span class="dropdown-arrow">▼</span>
+                        </button>
+                        <div class="dropdown-content" id="tagDropdownContent">
+                            <label class="dropdown-item">
+                                <input type="checkbox" value="all" checked>
+                                <span>All</span>
+                            </label>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -84,10 +93,17 @@
                 </div>
                 <div class="calendar-grid" id="calendarDays"></div>
             </div>
+        </div>
+    </div>
 
-            <!-- Tasks for Selected Date -->
-            <div class="selected-date-tasks" id="selectedDateTasks">
-                <h3 id="selectedDateTitle">Select a date</h3>
+    <!-- Calendar Day Modal -->
+    <div id="calendarModal" class="modal">
+        <div class="modal-content calendar-modal-content">
+            <div class="modal-header">
+                <h2 id="calendarDateTitle">Select a date</h2>
+                <span class="close-calendar">&times;</span>
+            </div>
+            <div class="modal-body">
                 <div class="task-list" id="calendarTaskList"></div>
             </div>
         </div>
@@ -170,8 +186,11 @@
                 </div>
 
                 <div class="form-actions">
-                    <button type="submit" class="btn btn-primary">Save</button>
-                    <button type="button" class="btn btn-secondary" id="cancelBtn">Cancel</button>
+                    <button type="button" class="btn btn-danger" id="deleteTaskBtn" style="display: none;">Delete</button>
+                    <div class="form-actions-right">
+                        <button type="submit" class="btn btn-primary">Save</button>
+                        <button type="button" class="btn btn-secondary" id="cancelBtn">Cancel</button>
+                    </div>
                 </div>
             </form>
         </div>

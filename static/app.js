@@ -22,6 +22,9 @@ const closeBtn = document.querySelector('.close');
 const taskHasBall = document.getElementById('taskHasBall');
 const ballHolderGroup = document.getElementById('ballHolderGroup');
 const taskTagsInput = document.getElementById('taskTags');
+const calendarModal = document.getElementById('calendarModal');
+const calendarDateTitle = document.getElementById('calendarDateTitle');
+const closeCalendarBtn = document.querySelector('.close-calendar');
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -67,11 +70,13 @@ function setupTabs() {
 function setupCalendar() {
     document.getElementById('prevMonth').addEventListener('click', () => {
         currentDate.setMonth(currentDate.getMonth() - 1);
+        closeCalendarModal();
         renderCalendar();
     });
 
     document.getElementById('nextMonth').addEventListener('click', () => {
         currentDate.setMonth(currentDate.getMonth() + 1);
+        closeCalendarModal();
         renderCalendar();
     });
 }
@@ -109,8 +114,9 @@ function renderCalendar() {
         const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
         const dayTasks = getTasksForDate(dateStr);
         const isToday = today.getFullYear() === year && today.getMonth() === month && today.getDate() === day;
+        const taskPeriods = getTaskPeriodsForDate(dateStr);
 
-        const dayEl = createDayElement(day, false, dateStr, dayTasks, isToday);
+        const dayEl = createDayElement(day, false, dateStr, dayTasks, taskPeriods, isToday);
         calendarDays.appendChild(dayEl);
     }
 
@@ -123,31 +129,52 @@ function renderCalendar() {
     }
 
     // Update selected date tasks if a date is selected
-    if (selectedDate) {
+    if (selectedDate && calendarModal.classList.contains('show')) {
         showSelectedDateTasks(selectedDate);
     }
 }
 
-// Create calendar day element
-function createDayElement(day, isOtherMonth, dateStr = null, dayTasks = [], isToday = false) {
+// Get tasks that cover this date (within their start/end period)
+function getTaskPeriodsForDate(dateStr) {
+    const taskList = [];
+    const checkDate = new Date(dateStr);
+    checkDate.setHours(0, 0, 0, 0);
+
+    tasks.forEach(task => {
+        if (task.start_date && task.due_date) {
+            const startDate = new Date(task.start_date);
+            startDate.setHours(0, 0, 0, 0);
+            const endDate = new Date(task.due_date);
+            endDate.setHours(23, 59, 59, 999);
+
+            if (checkDate >= startDate && checkDate <= endDate) {
+                taskList.push({
+                    task: task,
+                    priority: task.priority,
+                    isFirst: task.start_date === dateStr,
+                    isLast: task.due_date === dateStr
+                });
+            }
+        }
+    });
+
+    return taskList;
+}
+
+// Get tasks for a specific date (tasks with start/due on this date)
+function getTasksForDate(dateStr) {
+    return tasks.filter(task => {
+        return task.start_date === dateStr || task.due_date === dateStr;
+    });
+}
+
+// Create day element for calendar
+function createDayElement(day, isOtherMonth, dateStr = null, dayTasks = [], taskPeriods = [], isToday = false) {
     const dayEl = document.createElement('div');
     dayEl.className = 'calendar-day';
-
-    if (isOtherMonth) {
-        dayEl.classList.add('other-month');
-    }
-
-    if (isToday) {
-        dayEl.classList.add('today');
-    }
-
-    if (dateStr && selectedDate === dateStr) {
-        dayEl.classList.add('selected');
-    }
-
-    if (dayTasks.length > 0) {
-        dayEl.classList.add('has-tasks');
-    }
+    if (isOtherMonth) dayEl.classList.add('other-month');
+    if (isToday) dayEl.classList.add('today');
+    if (dayTasks.length > 0 || taskPeriods.length > 0) dayEl.classList.add('has-tasks');
 
     // Day number
     const dayNumber = document.createElement('div');
@@ -155,21 +182,46 @@ function createDayElement(day, isOtherMonth, dateStr = null, dayTasks = [], isTo
     dayNumber.textContent = day;
     dayEl.appendChild(dayNumber);
 
-    // Task dots
-    if (dayTasks.length > 0) {
-        const dotsContainer = document.createElement('div');
-        dotsContainer.className = 'calendar-day-dots';
+    // Task names list (show up to 3 tasks)
+    if (taskPeriods.length > 0) {
+        const taskNamesContainer = document.createElement('div');
+        taskNamesContainer.className = 'calendar-day-tasks';
 
-        const priorities = dayTasks.map(t => t.priority);
-        const uniquePriorities = [...new Set(priorities)].slice(0, 7);
+        // タスクを完了していないもの優先で、最大3つ表示
+        const displayTasks = taskPeriods
+            .sort((a, b) => {
+                if (a.task.status === 'done' && b.task.status !== 'done') return 1;
+                if (a.task.status !== 'done' && b.task.status === 'done') return -1;
+                return 0;
+            })
+            .slice(0, 3);
 
-        uniquePriorities.forEach(priority => {
-            const dot = document.createElement('div');
-            dot.className = `calendar-day-dot ${priority}`;
-            dotsContainer.appendChild(dot);
+        displayTasks.forEach(period => {
+            const taskEl = document.createElement('div');
+            taskEl.className = `calendar-task-name priority-${period.priority}`;
+            if (period.task.status === 'done') {
+                taskEl.classList.add('task-done');
+            }
+
+            // タスク名を短縮（最大8文字）
+            const shortName = period.task.name.length > 8
+                ? period.task.name.substring(0, 7) + '…'
+                : period.task.name;
+
+            taskEl.textContent = shortName;
+            taskEl.title = period.task.name; // ホバーでフルネーム表示
+            taskNamesContainer.appendChild(taskEl);
         });
 
-        dayEl.appendChild(dotsContainer);
+        // 3つ以上ある場合は「+N」を表示
+        if (taskPeriods.length > 3) {
+            const moreEl = document.createElement('div');
+            moreEl.className = 'calendar-task-more';
+            moreEl.textContent = `+${taskPeriods.length - 3}`;
+            taskNamesContainer.appendChild(moreEl);
+        }
+
+        dayEl.appendChild(taskNamesContainer);
     }
 
     // Click handler
@@ -185,17 +237,9 @@ function createDayElement(day, isOtherMonth, dateStr = null, dayTasks = [], isTo
     return dayEl;
 }
 
-// Get tasks for a specific date
-function getTasksForDate(dateStr) {
-    return tasks.filter(task => {
-        return task.start_date === dateStr || task.due_date === dateStr;
-    });
-}
-
 // Show tasks for selected date
 function showSelectedDateTasks(dateStr) {
-    const container = document.getElementById('selectedDateTasks');
-    const title = document.getElementById('selectedDateTitle');
+    const title = calendarDateTitle;
     const taskList = document.getElementById('calendarTaskList');
 
     const date = new Date(dateStr);
@@ -212,14 +256,20 @@ function showSelectedDateTasks(dateStr) {
     taskList.innerHTML = '';
 
     if (dayTasks.length === 0) {
-        taskList.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 20px;">No tasks for this date</p>';
-        return;
+        taskList.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 40px 20px;">No tasks for this date</p>';
+    } else {
+        dayTasks.forEach(task => {
+            const card = createTaskCard(task);
+            taskList.appendChild(card);
+        });
     }
 
-    dayTasks.forEach(task => {
-        const card = createCalendarTaskCard(task);
-        taskList.appendChild(card);
-    });
+    // Open modal
+    calendarModal.classList.add('show');
+}
+
+function closeCalendarModal() {
+    calendarModal.classList.remove('show');
 }
 
 // Create task card for calendar view
@@ -240,10 +290,6 @@ function createCalendarTaskCard(task) {
     card.innerHTML = `
         <div class="task-header">
             <div class="task-title">${escapeHtml(task.name)}</div>
-            <div class="task-actions">
-                <button class="btn btn-edit" onclick="editTask('${task.id}')">Edit</button>
-                <button class="btn btn-danger" onclick="deleteTask('${task.id}')">Delete</button>
-            </div>
         </div>
         ${task.memo ? `<div class="task-memo">${escapeHtml(task.memo)}</div>` : ''}
         <div class="task-meta">
@@ -253,6 +299,11 @@ function createCalendarTaskCard(task) {
         </div>
     `;
 
+    // Click to edit
+    card.addEventListener('click', () => {
+        openModal(task);
+    });
+
     return card;
 }
 
@@ -260,34 +311,25 @@ function createCalendarTaskCard(task) {
 function setupTagAutocomplete() {
     let suggestionsBox = null;
 
-    taskTagsInput.addEventListener('input', (e) => {
-        const value = e.target.value;
-        const lastTag = value.split(',').pop().trim().toLowerCase();
-
+    function showSuggestions(tags) {
         // Remove existing suggestions
         if (suggestionsBox) {
             suggestionsBox.remove();
             suggestionsBox = null;
         }
 
-        if (!lastTag || allTags.size === 0) return;
-
-        // Find matching tags
-        const matches = [...allTags].filter(tag =>
-            tag.toLowerCase().includes(lastTag)
-        );
-
-        if (matches.length === 0) return;
+        if (tags.length === 0) return;
 
         // Create suggestions box
         suggestionsBox = document.createElement('div');
         suggestionsBox.className = 'tag-suggestions';
 
-        matches.forEach(tag => {
+        tags.forEach(tag => {
             const suggestion = document.createElement('div');
             suggestion.className = 'tag-suggestion';
             suggestion.textContent = tag;
             suggestion.addEventListener('click', () => {
+                const value = taskTagsInput.value;
                 const currentTags = value.split(',').slice(0, -1);
                 currentTags.push(tag);
                 taskTagsInput.value = currentTags.join(', ');
@@ -298,6 +340,33 @@ function setupTagAutocomplete() {
         });
 
         taskTagsInput.parentElement.appendChild(suggestionsBox);
+    }
+
+    // Show all tags when input is focused
+    taskTagsInput.addEventListener('focus', () => {
+        if (allTags.size > 0) {
+            showSuggestions([...allTags]);
+        }
+    });
+
+    taskTagsInput.addEventListener('input', (e) => {
+        const value = e.target.value;
+        const lastTag = value.split(',').pop().trim().toLowerCase();
+
+        if (!lastTag) {
+            // Show all tags when empty
+            if (allTags.size > 0) {
+                showSuggestions([...allTags]);
+            }
+            return;
+        }
+
+        // Find matching tags
+        const matches = [...allTags].filter(tag =>
+            tag.toLowerCase().includes(lastTag)
+        );
+
+        showSuggestions(matches);
     });
 
     // Remove suggestions on outside click
@@ -317,7 +386,7 @@ function updateAllTags() {
             task.tags.forEach(tag => allTags.add(tag));
         }
     });
-    updateTagFilterButtons();
+    handleTagFilterUpdate();
 }
 
 // Setup event listeners
@@ -327,6 +396,23 @@ function setupEventListeners() {
     closeBtn.addEventListener('click', closeModal);
     taskForm.addEventListener('submit', handleSubmit);
     taskHasBall.addEventListener('change', toggleBallHolder);
+
+    // Delete button
+    document.getElementById('deleteTaskBtn').addEventListener('click', async () => {
+        const taskId = document.getElementById('taskId').value;
+        if (taskId) {
+            if (confirm('Delete this task?')) {
+                await deleteTask(taskId);
+                closeModal();
+            }
+        }
+    });
+
+    // Calendar modal events
+    closeCalendarBtn.addEventListener('click', closeCalendarModal);
+    calendarModal.addEventListener('click', (e) => {
+        if (e.target === calendarModal) closeCalendarModal();
+    });
 
     // Close modal on outside click
     taskModal.addEventListener('click', (e) => {
@@ -444,10 +530,6 @@ function createTaskCard(task) {
     card.innerHTML = `
         <div class="task-header">
             <div class="task-title">${escapeHtml(task.name)}</div>
-            <div class="task-actions">
-                <button class="btn btn-edit" onclick="editTask('${task.id}')">Edit</button>
-                <button class="btn btn-danger" onclick="deleteTask('${task.id}')">Delete</button>
-            </div>
         </div>
         ${task.memo ? `<div class="task-memo">${escapeHtml(task.memo)}</div>` : ''}
         <div class="task-meta">
@@ -458,6 +540,11 @@ function createTaskCard(task) {
         ${tagsHtml}
         ${tagCustomHtml}
     `;
+
+    // Click to edit
+    card.addEventListener('click', () => {
+        openModal(task);
+    });
 
     // Drag events
     card.addEventListener('dragstart', handleDragStart);
@@ -534,6 +621,7 @@ async function handleDrop(e) {
 function openModal(task = null) {
     modalTitle.textContent = task ? 'Edit Task' : 'New Task';
 
+    const deleteBtn = document.getElementById('deleteTaskBtn');
     if (task) {
         document.getElementById('taskId').value = task.id;
         document.getElementById('taskName').value = task.name;
@@ -545,12 +633,14 @@ function openModal(task = null) {
         document.getElementById('taskHasBall').checked = task.has_ball || false;
         document.getElementById('taskBallHolder').value = task.ball_holder || '';
         document.getElementById('taskStartDate').value = task.start_date || '';
-        document.getElementById('taskDueDate').value = task.due_date || '';
+        document.getElementById('taskDueDate'). value = task.due_date || '';
+        deleteBtn.style.display = 'block';
     } else {
         taskForm.reset();
         document.getElementById('taskId').value = '';
         document.getElementById('taskStatus').value = 'todo';
         document.getElementById('taskPriority').value = 'medium';
+        deleteBtn.style.display = 'none';
     }
 
     toggleBallHolder();
@@ -682,49 +772,127 @@ function setupFilters() {
             renderTasks();
         });
     }
+
+    // Tag dropdown
+    const tagDropdownBtn = document.getElementById('tagDropdownBtn');
+    const tagDropdownContent = document.getElementById('tagDropdownContent');
+
+    if (tagDropdownBtn && tagDropdownContent) {
+        // Toggle dropdown
+        tagDropdownBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            tagDropdownBtn.classList.toggle('open');
+            tagDropdownContent.classList.toggle('show');
+        });
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!tagDropdownBtn.contains(e.target) && !tagDropdownContent.contains(e.target)) {
+                tagDropdownBtn.classList.remove('open');
+                tagDropdownContent.classList.remove('show');
+            }
+        });
+
+        // Handle checkbox changes
+        tagDropdownContent.addEventListener('change', (e) => {
+            if (e.target.type === 'checkbox') {
+                handleTagCheckboxChange(e.target);
+            }
+        });
+    }
 }
 
-function updateTagFilterButtons() {
-    const tagFilter = document.getElementById('tagFilter');
-    if (!tagFilter) return;
+function handleTagFilterUpdate() {
+    const tagDropdownContent = document.getElementById('tagDropdownContent');
+    if (!tagDropdownContent) return;
 
-    // Clear existing buttons
-    tagFilter.innerHTML = '';
+    // Clear existing items (keep the "All" checkbox)
+    const allCheckbox = tagDropdownContent.querySelector('input[value="all"]');
+    tagDropdownContent.innerHTML = '';
 
-    // Add "All" button
-    const allBtn = document.createElement('button');
-    allBtn.className = `tag-filter-btn ${selectedTagFilters.has('all') ? 'active' : ''}`;
-    allBtn.textContent = 'All';
-    allBtn.dataset.tag = 'all';
-    allBtn.addEventListener('click', () => applyTagFilter('all'));
-    tagFilter.appendChild(allBtn);
+    // Add "All" checkbox
+    const allItem = document.createElement('label');
+    allItem.className = 'dropdown-item';
+    const allInput = document.createElement('input');
+    allInput.type = 'checkbox';
+    allInput.value = 'all';
+    allInput.checked = selectedTagFilters.has('all');
+    const allSpan = document.createElement('span');
+    allSpan.textContent = 'All';
+    allItem.appendChild(allInput);
+    allItem.appendChild(allSpan);
+    tagDropdownContent.appendChild(allItem);
 
-    // Add tag buttons
+    // Add tag checkboxes
     allTags.forEach(tag => {
-        const btn = document.createElement('button');
-        btn.className = `tag-filter-btn ${selectedTagFilters.has(tag) ? 'active' : ''}`;
-        btn.textContent = tag;
-        btn.dataset.tag = tag;
-        btn.addEventListener('click', () => applyTagFilter(tag));
-        tagFilter.appendChild(btn);
+        const item = document.createElement('label');
+        item.className = 'dropdown-item';
+
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.value = tag;
+        input.checked = selectedTagFilters.has(tag);
+
+        const span = document.createElement('span');
+        span.textContent = tag;
+
+        item.appendChild(input);
+        item.appendChild(span);
+        tagDropdownContent.appendChild(item);
     });
+
+    // Update dropdown label
+    updateTagDropdownLabel();
 }
 
-function applyTagFilter(tag) {
-    if (tag === 'all') {
-        selectedTagFilters.clear();
-        selectedTagFilters.add('all');
+function handleTagCheckboxChange(checkbox) {
+    const value = checkbox.value;
+
+    if (value === 'all') {
+        if (checkbox.checked) {
+            selectedTagFilters.clear();
+            selectedTagFilters.add('all');
+        } else {
+            selectedTagFilters.delete('all');
+        }
     } else {
         selectedTagFilters.delete('all');
-        if (selectedTagFilters.has(tag)) {
-            selectedTagFilters.delete(tag);
-            if (selectedTagFilters.size === 0) {
-                selectedTagFilters.add('all');
-            }
+        if (checkbox.checked) {
+            selectedTagFilters.add(value);
         } else {
-            selectedTagFilters.add(tag);
+            selectedTagFilters.delete(value);
+        }
+
+        // If no tags selected, select "All"
+        if (selectedTagFilters.size === 0) {
+            selectedTagFilters.add('all');
         }
     }
-    updateTagFilterButtons();
+
+    // Update all checkboxes
+    const allCheckbox = document.getElementById('tagDropdownContent').querySelector('input[value="all"]');
+    const tagCheckboxes = Array.from(document.getElementById('tagDropdownContent').querySelectorAll('input[type="checkbox"]')).filter(cb => cb.value !== 'all');
+
+    if (selectedTagFilters.has('all')) {
+        allCheckbox.checked = true;
+        tagCheckboxes.forEach(cb => cb.checked = false);
+    } else {
+        allCheckbox.checked = false;
+    }
+
+    updateTagDropdownLabel();
     renderTasks();
+}
+
+function updateTagDropdownLabel() {
+    const label = document.getElementById('tagDropdownLabel');
+    if (!label) return;
+
+    if (selectedTagFilters.has('all')) {
+        label.textContent = 'All';
+    } else if (selectedTagFilters.size === 1) {
+        label.textContent = [...selectedTagFilters][0];
+    } else {
+        label.textContent = `${selectedTagFilters.size} tags`;
+    }
 }
