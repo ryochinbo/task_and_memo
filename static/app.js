@@ -611,8 +611,29 @@ async function handleDrop(e) {
         const task = tasks.find(t => t.id === taskId);
 
         if (task && task.status !== newStatus) {
+            // 即時反映（楽観的更新）
+            const oldStatus = task.status;
             task.status = newStatus;
-            await updateTask(taskId, task);
+            renderTasks();
+            showNotification('ステータスを変更中...', 'info');
+
+            // バックグラウンドで保存
+            try {
+                const response = await fetch(`${API_BASE}/${taskId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: newStatus })
+                });
+
+                if (!response.ok) throw new Error('Failed to update task');
+
+                showNotification('ステータスを変更しました', 'success');
+            } catch (error) {
+                // エラー時は元に戻す
+                task.status = oldStatus;
+                renderTasks();
+                showNotification('更新に失敗しました', 'error');
+            }
         }
     }
 }
@@ -687,39 +708,114 @@ async function handleSubmit(e) {
 
 // API calls
 async function createTask(taskData) {
-    const response = await fetch(API_BASE, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(taskData)
-    });
+    // 楽観的UI更新のために一時IDを生成
+    const tempId = 'temp-' + Date.now();
 
-    if (!response.ok) throw new Error('Failed to create task');
+    // サーバーに送信前にUIに追加（即時フィードバック）
+    const tempTask = {
+        id: tempId,
+        ...taskData,
+        created_at: new Date().toISOString()
+    };
+    tasks.push(tempTask);
+    renderTasks();
+    showNotification('タスクを追加中...', 'info');
 
-    await loadTasks();
+    try {
+        const response = await fetch(API_BASE, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(taskData)
+        });
+
+        if (!response.ok) throw new Error('Failed to create task');
+
+        const result = await response.json();
+
+        // 一時タスクを本物に置き換え
+        const index = tasks.findIndex(t => t.id === tempId);
+        if (index !== -1) {
+            tasks[index] = result;
+        }
+        renderTasks();
+        showNotification('タスクを追加しました', 'success');
+    } catch (error) {
+        // エラー時は一時タスクを削除
+        const index = tasks.findIndex(t => t.id === tempId);
+        if (index !== -1) {
+            tasks.splice(index, 1);
+        }
+        renderTasks();
+        throw error;
+    }
 }
 
 async function updateTask(taskId, taskData) {
-    const response = await fetch(`${API_BASE}/${taskId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(taskData)
-    });
+    // 楽観的UI更新（即時反映）
+    const oldTask = tasks.find(t => t.id === taskId);
+    const index = tasks.findIndex(t => t.id === taskId);
+    if (index !== -1) {
+        tasks[index] = { ...tasks[index], ...taskData };
+        renderTasks();
+    }
+    showNotification('タスクを更新中...', 'info');
 
-    if (!response.ok) throw new Error('Failed to update task');
+    try {
+        const response = await fetch(`${API_BASE}/${taskId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(taskData)
+        });
 
-    await loadTasks();
+        if (!response.ok) throw new Error('Failed to update task');
+
+        const result = await response.json();
+
+        // サーバーからの応答で更新
+        const idx = tasks.findIndex(t => t.id === taskId);
+        if (idx !== -1) {
+            tasks[idx] = result;
+        }
+        renderTasks();
+        showNotification('タスクを更新しました', 'success');
+    } catch (error) {
+        // エラー時は元に戻す
+        if (oldTask && index !== -1) {
+            tasks[index] = oldTask;
+        }
+        renderTasks();
+        throw error;
+    }
 }
 
 async function deleteTask(taskId) {
     if (!confirm('Delete this task?')) return;
 
-    const response = await fetch(`${API_BASE}/${taskId}`, {
-        method: 'DELETE'
-    });
+    // 楽観的UI更新（即時削除）
+    const oldTask = tasks.find(t => t.id === taskId);
+    const index = tasks.findIndex(t => t.id === taskId);
+    if (index !== -1) {
+        tasks.splice(index, 1);
+    }
+    renderTasks();
+    showNotification('タスクを削除中...', 'info');
 
-    if (!response.ok) throw new Error('Failed to delete task');
+    try {
+        const response = await fetch(`${API_BASE}/${taskId}`, {
+            method: 'DELETE'
+        });
 
-    await loadTasks();
+        if (!response.ok) throw new Error('Failed to delete task');
+
+        showNotification('タスクを削除しました', 'success');
+    } catch (error) {
+        // エラー時は元に戻す
+        if (oldTask) {
+            tasks.splice(index, 0, oldTask);
+        }
+        renderTasks();
+        throw error;
+    }
 }
 
 // Notification (simple toast)
@@ -727,12 +823,26 @@ function showNotification(message, type = 'info') {
     const notification = document.createElement('div');
     notification.className = `notification notification-${type}`;
     notification.textContent = message;
+
+    // タイプ別の色設定
+    let bgColor;
+    switch (type) {
+        case 'error':
+            bgColor = 'rgba(239, 68, 68, 0.9)';
+            break;
+        case 'success':
+            bgColor = 'rgba(16, 185, 129, 0.9)';
+            break;
+        default:
+            bgColor = 'rgba(99, 102, 241, 0.9)';
+    }
+
     notification.style.cssText = `
         position: fixed;
         bottom: 20px;
         right: 20px;
         padding: 12px 20px;
-        background: ${type === 'error' ? 'rgba(239, 68, 68, 0.9)' : 'rgba(99, 102, 241, 0.9)'};
+        background: ${bgColor};
         color: white;
         border-radius: 8px;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
@@ -746,7 +856,7 @@ function showNotification(message, type = 'info') {
     setTimeout(() => {
         notification.style.animation = 'slideOut 0.3s ease';
         setTimeout(() => notification.remove(), 300);
-    }, 3000);
+    }, 2000);
 }
 
 // Global functions (called from HTML)

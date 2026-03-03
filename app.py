@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, jsonify
 import json
 import os
 import subprocess
+import threading
 from datetime import datetime
 import uuid
 
@@ -20,16 +21,17 @@ def load_tasks():
         return json.load(f)
 
 def save_tasks(tasks_data):
-    """タスクを保存してgitにコミット＆プッシュ"""
+    """タスクを保存してgitにコミット＆プッシュ（非同期）"""
     with open(TASKS_FILE, 'w', encoding='utf-8') as f:
         json.dump(tasks_data, f, ensure_ascii=False, indent=2)
-    git_commit_and_push()
+    # Git操作はバックグラウンドで実行（レスポンスを速くする）
+    threading.Thread(target=git_commit_and_push, daemon=True).start()
 
 def git_commit_and_push():
-    """dataディレクトリでgit commit & pushを実行"""
+    """dataディレクトリでgit commit & pushを実行（バックグラウンド）"""
     try:
         # dataディレクトリに移動してgit操作
-        result = subprocess.run(
+        subprocess.run(
             ['git', 'add', 'tasks.json'],
             cwd=DATA_DIR,
             capture_output=True,
@@ -37,7 +39,7 @@ def git_commit_and_push():
             encoding='utf-8'
         )
 
-        result = subprocess.run(
+        subprocess.run(
             ['git', 'commit', '-m', f'Update tasks - {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'],
             cwd=DATA_DIR,
             capture_output=True,
@@ -45,7 +47,7 @@ def git_commit_and_push():
             encoding='utf-8'
         )
 
-        result = subprocess.run(
+        subprocess.run(
             ['git', 'push'],
             cwd=DATA_DIR,
             capture_output=True,
